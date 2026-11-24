@@ -1,0 +1,11 @@
+{
+  "name": "dcr-english-lab-ai-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build_site.js",
+    "test": "node --test tests/*.test.js",
+    "check:bank": "node scripts/check_bank.js"
+  }
+}

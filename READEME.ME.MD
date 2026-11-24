@@ -129,8 +129,76 @@ Gitで管理されている主なファイル:
 
 ## 10. 推奨事項
 
-1. `.gitignore` をコミットし、`.env` を確実に除外する。
-2. `.env` に含まれるAPIキーを失効・再発行する。
-3. 生成フローをスクリプト化し、問題生成後にJSON検証とHTML再生成を連続実行できるようにする。
-4. 問題データに対してスキーマ検証、自動テスト、重複確認を追加する。
-5. 配布前に `.env` のGit履歴とコミット履歴を確認する。
+1. 生成フローをスクリプト化し、問題生成後にJSON検証とHTML再生成を連続実行できるようにする。
+
+## 11. AIチューター統合レポート
+
+### 実装状況
+
+- 誤答結果カードに「間違えた理由」「やさしく説明」「類題を解く」の3操作を追加した。
+- 結果画面の既存解説、採点、復習間隔、模試制限時間、履歴保存には変更を加えていない。
+- `POST /api/tutor` を同一Origin向けに実装した。
+- サーバー側で問題ID、選択番号、actionを検証し、正解・問題文はサーバーの問題バンクから取得する。
+- モック時と本番時で応答モードを分け、本番設定不足時はフェイルクローズする。
+- 生成文章は `textContent` を使用し、類題の回答は学習成績へ記録しない。
+
+### 主な変更ファイル
+
+- `app_template.html` / `index.html` — 結果画面へのAI操作UI
+- `assets/tutor-ui.css` / `assets/tutor-ui.js` — UIと通信処理
+- `functions/api/tutor.js` — API検証、レート制限、OpenAI呼び出し
+- `functions/_lib/` — 問題バンク、モック、プロンプト、JSON Schema
+- `scripts/build_site.js` — ルート版とPages出力の生成
+- `scripts/check_bank.js` — 問題バンク検証
+- `tests/api.test.js` — API入力検証・モック・スキーマテスト
+- `package.json` / `wrangler.toml` — ビルド・テスト・Pages設定
+
+### 実行コマンド
+
+- `npm run check:bank`
+- `npm run build`
+- `npm test`
+
+### ローカル検証結果
+
+- 問題バンク: 365問、16カテゴリ、重複・選択肢・解答範囲を検証済み
+- ビルド: ルート版 `index.html` と `site/index.html` を生成済み
+- APIテスト: 8件すべて成功
+- HTTP確認: `/`、`/assets/tutor-ui.js`、`/site/index.html` がローカルで200応答
+- レスポンシブ検証は静的確認まで実施。320/390/768/1280pxの実ブラウザ操作は未検証
+
+### Cloudflare設定
+
+- `wrangler.toml` の出力先は `./site` のPages構成を示す。
+- Git連携、Pages Functionsと独立Workersのどちらが実運用かは設定・ダッシュボード情報から確定できていない。
+- `wrangler.toml` にレートリミッターの初期設定はあるが、Pagesプロジェクトへの適用可否は未確認。
+- 本番で必要なSecret: `OPENAI_API_KEY`
+- 環境変数候補: `OPENAI_MODEL=gpt-6-luna`、`APP_ENV=production`
+- 現在のローカル `.env` は変数名 `OPEN_AI_KEY` を使用しているため、統合APIが読む `OPENAI_API_KEY` Secretとは別名として扱われる。値の移行時は必ずCloudflare Secretへ保存し、秘密文字列をファイルへ残さない。
+
+### セキュリティ確認
+
+- Git履歴に `.env` または `.dev.vars` の追加履歴は見つからなかった。
+- `.env` の値はレポート・ログ・成果物へ記載していない。
+- `.gitignore` は `.env`、`.dev.vars`、`.wrangler`、AI成果物を除外する。
+- レートリミッター未設定時は503で停止し、設定不足をfail closedとする。
+- 本番公開前にAPIキー失効・再発行、WAF/Access、OpenAI支出上限の確認が必要。
+
+### 未検証事項
+
+- 実OpenAI Responses APIへの接続
+- `gpt-6-luna` が該当OpenAIアカウントで利用可能か
+- 実Cloudflare Pages/Workersへのデプロイ
+- 実レート制限の動作
+- 320/390/768/1280pxでの実ブラウザ操作
+- 16分野×3 actionの品質監査
+
+実APIへの接続・デプロイは明示的な指示がないため未実施である。
+
+### ロールバック
+
+AI関連ファイルを削除または無効化し、`app_template.html` と `index.html` を統合前の結果カードに戻す。`npm run build` の再実行でルート版とPages出力を再生成し、採点・復習・模試ロジックは変更しない。
+
+### 想定API費用
+
+入力1,000トークン・出力350トークンの場合の参考値は約 `$0.000275 / 回` である。実利用はモデル、推論トークン、キャッシュ、為替レートに左右されるため、CloudflareとOpenAIの利用ダッシュボードで実測が必要。

@@ -1,0 +1,10 @@
+name = "dcr-english-lab-ai"
+compatibility_date = "2026-11-20"
+pages_build_output_dir = "./site"
+
+# Cloudflare Rate Limiting binding: 1 IPあたり各PoPで毎分10回（グローバルな厳密上限ではない）
+# 使用中のPagesプロジェクトとwranglerの対応状況を確認してから本番適用する。
+[[ratelimits]]
+name = "AI_RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }
